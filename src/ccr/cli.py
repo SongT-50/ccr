@@ -9,6 +9,7 @@ from rich.table import Table
 
 from ccr.models import Severity
 from ccr.reviewer import CCRReviewer
+from ccr.hcca import HCCAReviewer
 
 console = Console()
 
@@ -45,11 +46,18 @@ def main():
 @click.option("--type", "artifact_type", default=None, help="Artifact type (code/document/paper)")
 @click.option("--output", "-o", default=None, help="Save report to file")
 @click.option("--sequential", is_flag=True, help="Run reviewers sequentially (default: parallel)")
-def review(file, provider, model, reviewers, artifact_type, output, sequential):
+@click.option("--mode", default="ccr", type=click.Choice(["ccr", "hcca"]), help="Review mode: ccr (default) or hcca (4-layer hierarchical)")
+def review(file, provider, model, reviewers, artifact_type, output, sequential, mode):
     """Review a file using Cross-Context Review protocol.
 
     Each reviewer runs in a completely isolated session - no shared context,
     no anchoring bias. Findings are merged by a Director session.
+
+    Modes:
+
+        ccr   — Standard CCR (3 reviewers + director)
+
+        hcca  — Hierarchical CCA (workers + verifiers + director + meta)
 
     Examples:
 
@@ -57,18 +65,34 @@ def review(file, provider, model, reviewers, artifact_type, output, sequential):
 
         ccr review paper.tex --type paper --reviewers 5
 
+        ccr review app.js --mode hcca
+
         ccr review app.js --provider openai --model gpt-4o
     """
-    console.print(f"\n[bold]CCR Review[/bold]: {file}")
+    mode_label = "HCCA" if mode == "hcca" else "CCR"
+    console.print(f"\n[bold]{mode_label} Review[/bold]: {file}")
     console.print(f"Provider: {provider} | Reviewers: {reviewers} | Parallel: {not sequential}\n")
 
-    with console.status("[bold green]Running independent reviews..."):
-        reviewer = CCRReviewer(
-            provider=provider,
-            model=model,
-            num_reviewers=reviewers,
-            parallel=not sequential,
-        )
+    if mode == "hcca":
+        status_msg = "[bold green]Running HCCA 4-layer review..."
+    else:
+        status_msg = "[bold green]Running independent reviews..."
+
+    with console.status(status_msg):
+        if mode == "hcca":
+            reviewer = HCCAReviewer(
+                provider=provider,
+                model=model,
+                num_workers=reviewers,
+                parallel=not sequential,
+            )
+        else:
+            reviewer = CCRReviewer(
+                provider=provider,
+                model=model,
+                num_reviewers=reviewers,
+                parallel=not sequential,
+            )
         result = reviewer.review_file(file, artifact_type=artifact_type)
 
     # Display results

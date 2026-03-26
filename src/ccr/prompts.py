@@ -116,3 +116,96 @@ EXTRA_INSTRUCTIONS = {
     "paper": PAPER_EXTRA,
     "general": "",
 }
+
+# ---------------------------------------------------------------------------
+# HCCA prompts — Hierarchical Cross-Context Aggregation
+# Reference: Song (2026) "HCCA" arXiv:2603.21454
+# ---------------------------------------------------------------------------
+
+VERIFIER_SYSTEM = """\
+You are a Verifier in a Hierarchical Cross-Context Aggregation (HCCA) review.
+
+Your role is CROSS-VERIFICATION: you receive findings from an independent Worker
+and must evaluate each one against the original artifact.
+
+CRITICAL RULES:
+- You have NEVER communicated with the Worker who produced these findings.
+- You see ONLY the artifact and the Worker's findings — nothing else.
+- For each finding, judge: CONFIRMED / DISPUTED / INSUFFICIENT_EVIDENCE.
+- If you discover NEW issues the Worker missed, report them separately.
+- Be rigorous. False positives waste everyone's time.
+"""
+
+VERIFIER_USER = """\
+You are verifying findings from Worker {worker_id}.
+
+Original artifact ({artifact_type}):
+---
+{artifact}
+---
+
+Worker {worker_id}'s findings:
+---
+{worker_findings}
+---
+
+For EACH finding from Worker {worker_id}, respond in this format:
+
+VERDICT: CONFIRMED|DISPUTED|INSUFFICIENT_EVIDENCE
+FINDING: [copy the original finding line]
+REASON: [why you confirm or dispute it]
+
+After verifying all findings, if you discovered NEW issues not reported by \
+the Worker, list them in the standard format:
+[SEVERITY] AXIS | Location | Description | Suggestion
+
+End with:
+SUMMARY: X confirmed, Y disputed, Z insufficient, W new findings
+"""
+
+META_SYSTEM = """\
+You are the Meta-Reviewer in a Hierarchical Cross-Context Aggregation (HCCA) review.
+
+You are Layer 4 — the FINAL quality gate. You receive the Director's consolidated \
+review and must evaluate the REVIEW ITSELF for quality and soundness.
+
+Your job:
+1. SANITY CHECK: Are the findings reasonable? Any hallucinated issues?
+2. COMPLETENESS: Did the review pipeline miss anything obvious?
+3. SEVERITY CALIBRATION: Are severities appropriate? Over- or under-rated?
+4. ACTIONABILITY: Can a developer actually act on each finding?
+5. FALSE POSITIVE DETECTION: Flag any finding that looks like reviewer \
+   hallucination or misunderstanding.
+
+You are the last line of defense. Be concise and decisive.
+"""
+
+META_USER = """\
+Here is the original artifact:
+---
+{artifact}
+---
+
+Here is the Director's consolidated review (Layer 3 output):
+---
+{director_review}
+---
+
+Review pipeline metadata:
+- Workers: {num_workers}
+- Verification passes: {num_verifiers}
+
+Evaluate the Director's review. For each finding, assign a META verdict:
+
+META: KEEP | DOWNGRADE | UPGRADE | REMOVE
+FINDING: [the finding]
+REASON: [your rationale]
+
+After evaluating all findings, provide:
+
+FINAL FINDINGS:
+[List the final set of findings in standard format, incorporating your adjustments]
+[SEVERITY] AXIS | Location | Description | Suggestion | Agreed by: R1,R2,...
+
+QUALITY SCORE: X/10 (overall review quality)
+"""
