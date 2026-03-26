@@ -1,0 +1,41 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ccr-review"
+version = "0.1.0"
+description = "Cross-Context Review: Model-agnostic LLM bias elimination through session isolation"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [
+    { name = "Song Tae-Eun", email = "higheun@gmail.com" },
+]
+keywords = ["llm", "code-review", "bias", "cross-context", "ai", "verification"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Quality Assurance",
+]
+dependencies = [
+    "anthropic>=0.40.0",
+    "openai>=1.50.0",
+    "click>=8.0",
+    "rich>=13.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-asyncio", "ruff"]
+
+[project.scripts]
+ccr = "ccr.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ccr"]
+
+[project.urls]
+Homepage = "https://github.com/SongT-50/ccr"
+Paper = "https://arxiv.org/abs/2603.12123"
