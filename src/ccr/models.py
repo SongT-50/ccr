@@ -12,12 +12,13 @@ class Severity(Enum):
 
 
 class Axis(Enum):
-    """CCR 5-Axis Verification Framework."""
+    """CCR 5+1 Axis Verification Framework."""
     FACT = "factual_accuracy"      # 사실 정확성
     CONS = "internal_consistency"  # 내부 일관성
     CTXT = "contextual_fitness"    # 맥락 적합성
     RCVR = "receiver_perspective"  # 수신자 관점
     MISS = "completeness"          # 완전성
+    SEC = "security"               # 보안
 
 
 @dataclass

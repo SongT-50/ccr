@@ -13,6 +13,9 @@ from ccr.prompts import (
     DIRECTOR_USER,
     EXTRA_INSTRUCTIONS,
     REVIEWER_SYSTEM,
+    REVIEWER_SYSTEM_DESIGN,
+    REVIEWER_SYSTEM_LOGIC,
+    REVIEWER_SYSTEM_SECURITY,
     REVIEWER_USER,
 )
 
@@ -46,7 +49,7 @@ def _parse_finding(line: str, reviewer_id: int) -> Finding | None:
         severity = Severity.INFO
 
     axis_map = {"FACT": Axis.FACT, "CONS": Axis.CONS, "CTXT": Axis.CTXT,
-                "RCVR": Axis.RCVR, "MISS": Axis.MISS}
+                "RCVR": Axis.RCVR, "MISS": Axis.MISS, "SEC": Axis.SEC}
     axis = axis_map.get(axis_str.upper(), Axis.CTXT)
 
     return Finding(
@@ -61,12 +64,17 @@ def _parse_finding(line: str, reviewer_id: int) -> Finding | None:
 
 def _parse_director_finding(line: str) -> Finding | None:
     """Parse director's consolidated finding."""
-    # Format: [SEVERITY] AXIS | Location | Description | Suggestion | Agreed by: R1,R2
-    pattern = (
+    # Format 1: [SEVERITY] AXIS | Location | Description | Suggestion | Agreed by: R1,R2
+    pattern_bracket = (
         r"\[(\w+)\]\s*(\w+)\s*\|\s*(.+?)\s*\|\s*(.+?)\s*\|\s*(.+?)\s*\|"
         r"\s*[Aa]greed\s+by:\s*(.+)"
     )
-    match = re.match(pattern, line.strip())
+    # Format 2: SEVERITY AXIS | Location | Description | Suggestion | Agreed by: R1,R2
+    pattern_plain = (
+        r"(\w+)\s+(\w+)\s*\|\s*(.+?)\s*\|\s*(.+?)\s*\|\s*(.+?)\s*\|"
+        r"\s*[Aa]greed\s+by:\s*(.+)"
+    )
+    match = re.match(pattern_bracket, line.strip()) or re.match(pattern_plain, line.strip())
     if not match:
         return _parse_finding(line, 0)
 
@@ -78,13 +86,14 @@ def _parse_director_finding(line: str) -> Finding | None:
         severity = Severity.INFO
 
     axis_map = {"FACT": Axis.FACT, "CONS": Axis.CONS, "CTXT": Axis.CTXT,
-                "RCVR": Axis.RCVR, "MISS": Axis.MISS}
+                "RCVR": Axis.RCVR, "MISS": Axis.MISS, "SEC": Axis.SEC}
     axis = axis_map.get(axis_str.upper(), Axis.CTXT)
 
     # Parse agreed reviewers
     agreed_ids = []
     for part in agreed.split(","):
-        part = part.strip().lstrip("R").lstrip("★").strip()
+        # Clean: "★R1" -> "1", "R2" -> "2", "Director" -> skip
+        part = re.sub(r"[★\s]", "", part).lstrip("R")
         if part.isdigit():
             agreed_ids.append(int(part))
 
@@ -175,7 +184,14 @@ class CCRReviewer:
     def _run_independent_reviews(
         self, artifact: str, artifact_type: str
     ) -> list[str]:
-        """Run N independent review sessions. Each session is completely isolated."""
+        """Run N independent review sessions. Each session is completely isolated.
+
+        For code artifacts, each reviewer gets a different perspective:
+          - Reviewer 1: Security focus
+          - Reviewer 2: Logic & error handling focus
+          - Reviewer 3: Design & maintainability focus
+          - Reviewer 4+: General (rotates through perspectives)
+        """
         extra = EXTRA_INSTRUCTIONS.get(artifact_type, "")
         user_prompt = REVIEWER_USER.format(
             artifact_type=artifact_type,
@@ -183,9 +199,22 @@ class CCRReviewer:
             extra_instructions=extra,
         )
 
+        # For code artifacts, assign diverse perspectives
+        if artifact_type == "code":
+            perspective_prompts = [
+                REVIEWER_SYSTEM_SECURITY,
+                REVIEWER_SYSTEM_LOGIC,
+                REVIEWER_SYSTEM_DESIGN,
+            ]
+        else:
+            perspective_prompts = [REVIEWER_SYSTEM]
+
         def do_review(reviewer_id: int) -> str:
+            # Pick perspective based on reviewer index (cycle if more than 3)
+            idx = (reviewer_id - 1) % len(perspective_prompts)
+            system = perspective_prompts[idx]
             # Each call creates a brand new session — CCR core principle
-            response = self.backend.chat(REVIEWER_SYSTEM, user_prompt)
+            response = self.backend.chat(system, user_prompt)
             self._total_input_tokens += response.input_tokens
             self._total_output_tokens += response.output_tokens
             return f"=== Reviewer {reviewer_id} ===\n{response.content}"
@@ -217,9 +246,10 @@ class CCRReviewer:
 
         # Parse director output
         findings = []
+        severity_keywords = ("CRITICAL", "MAJOR", "MINOR", "INFO", "[CRITICAL", "[MAJOR", "[MINOR", "[INFO")
         for line in response.content.split("\n"):
             line = line.strip()
-            if line.startswith("["):
+            if line.startswith(severity_keywords) and "|" in line:
                 finding = _parse_director_finding(line)
                 if finding:
                     findings.append(finding)

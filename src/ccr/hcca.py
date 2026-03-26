@@ -27,6 +27,9 @@ from ccr.prompts import (
     META_SYSTEM,
     META_USER,
     REVIEWER_SYSTEM,
+    REVIEWER_SYSTEM_DESIGN,
+    REVIEWER_SYSTEM_LOGIC,
+    REVIEWER_SYSTEM_SECURITY,
     REVIEWER_USER,
     VERIFIER_SYSTEM,
     VERIFIER_USER,
@@ -114,7 +117,10 @@ class HCCAReviewer:
     # ------------------------------------------------------------------
 
     def _layer1_workers(self, artifact: str, artifact_type: str) -> list[str]:
-        """Layer 1: N independent workers each review the artifact in isolation."""
+        """Layer 1: N independent workers each review the artifact in isolation.
+
+        For code artifacts, workers get diverse perspectives (security, logic, design).
+        """
         extra = EXTRA_INSTRUCTIONS.get(artifact_type, "")
         user_prompt = REVIEWER_USER.format(
             artifact_type=artifact_type,
@@ -122,8 +128,20 @@ class HCCAReviewer:
             extra_instructions=extra,
         )
 
+        # For code artifacts, assign diverse perspectives
+        if artifact_type == "code":
+            perspective_prompts = [
+                REVIEWER_SYSTEM_SECURITY,
+                REVIEWER_SYSTEM_LOGIC,
+                REVIEWER_SYSTEM_DESIGN,
+            ]
+        else:
+            perspective_prompts = [REVIEWER_SYSTEM]
+
         def do_review(worker_id: int) -> str:
-            response = self.backend.chat(REVIEWER_SYSTEM, user_prompt)
+            idx = (worker_id - 1) % len(perspective_prompts)
+            system = perspective_prompts[idx]
+            response = self.backend.chat(system, user_prompt)
             self._total_input_tokens += response.input_tokens
             self._total_output_tokens += response.output_tokens
             return f"=== Worker {worker_id} ===\n{response.content}"
