@@ -40,7 +40,7 @@ def main():
 
 @main.command()
 @click.argument("file", type=click.Path(exists=True))
-@click.option("--provider", "-p", default="anthropic", help="LLM provider (anthropic/openai)")
+@click.option("--provider", "-p", default="anthropic", help="LLM provider (anthropic/openai/gemini)")
 @click.option("--model", "-m", default=None, help="Model name override")
 @click.option("--reviewers", "-n", default=3, help="Number of independent reviewers (default: 3)")
 @click.option("--type", "artifact_type", default=None, help="Artifact type (code/document/paper)")
@@ -68,6 +68,8 @@ def review(file, provider, model, reviewers, artifact_type, output, sequential, 
         ccr review app.js --mode hcca
 
         ccr review app.js --provider openai --model gpt-4o
+
+        ccr review app.js --provider gemini --model gemini-2.5-pro
     """
     mode_label = "HCCA" if mode == "hcca" else "CCR"
     console.print(f"\n[bold]{mode_label} Review[/bold]: {file}")

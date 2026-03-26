@@ -45,6 +45,7 @@ pip install ccr-review
 # Set your API key (pick one)
 export ANTHROPIC_API_KEY=sk-ant-...
 export OPENAI_API_KEY=sk-...
+export GEMINI_API_KEY=...
 
 # Review code
 ccr review mycode.py
@@ -57,6 +58,9 @@ ccr verify paper.tex
 
 # Use a different model
 ccr review app.js --provider openai --model gpt-4o
+
+# Use Gemini (requires: pip install ccr-review[gemini])
+ccr review app.js --provider gemini --model gemini-2.5-pro
 
 # See all models and pricing
 ccr models
@@ -135,7 +139,7 @@ CCR is based on peer-reviewed research with 660+ experimental sessions:
 - [x] Core CCR protocol (independent reviewers + director)
 - [x] CLI (`ccr review`, `ccr verify`, `ccr models`)
 - [x] Anthropic & OpenAI backends
-- [ ] Google Gemini backend
+- [x] Google Gemini backend
 - [ ] HCCA mode (hierarchical multi-agent verification)
 - [ ] GitHub Action (auto-review on PR)
 - [ ] CCR Benchmark dataset on HuggingFace

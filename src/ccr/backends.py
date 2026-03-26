@@ -26,6 +26,7 @@ PRICING = {
     "gpt-4o-mini": {"input": 0.15, "output": 0.60},
     "o3-mini": {"input": 1.10, "output": 4.40},
     # Google
+    "gemini-2.0-flash": {"input": 0.10, "output": 0.40},
     "gemini-2.5-flash": {"input": 0.15, "output": 0.60},
     "gemini-2.5-pro": {"input": 1.25, "output": 10.00},
 }
@@ -109,11 +110,46 @@ class OpenAIBackend(LLMBackend):
         )
 
 
+class GeminiBackend(LLMBackend):
+    def __init__(self, model: str = "gemini-2.0-flash"):
+        import google.generativeai as genai
+
+        api_key = os.environ.get("GEMINI_API_KEY")
+        if not api_key:
+            raise ValueError(
+                "GEMINI_API_KEY environment variable is required. "
+                "Get one at https://aistudio.google.com/apikey"
+            )
+        genai.configure(api_key=api_key)
+        self._model = model
+        self._genai = genai
+
+    @property
+    def model_name(self) -> str:
+        return self._model
+
+    def chat(self, system: str, user: str) -> LLMResponse:
+        model = self._genai.GenerativeModel(
+            model_name=self._model,
+            system_instruction=system,
+        )
+        response = model.generate_content(user)
+        usage = response.usage_metadata
+        return LLMResponse(
+            content=response.text or "",
+            input_tokens=usage.prompt_token_count if usage else 0,
+            output_tokens=usage.candidates_token_count if usage else 0,
+            model=self._model,
+        )
+
+
 def create_backend(provider: str = "anthropic", model: str | None = None) -> LLMBackend:
     """Factory for LLM backends."""
     if provider == "anthropic":
         return AnthropicBackend(model or "claude-sonnet-4-6-20260320")
     elif provider == "openai":
         return OpenAIBackend(model or "gpt-4o")
+    elif provider == "gemini":
+        return GeminiBackend(model or "gemini-2.0-flash")
     else:
-        raise ValueError(f"Unknown provider: {provider}. Use 'anthropic' or 'openai'.")
+        raise ValueError(f"Unknown provider: {provider}. Use 'anthropic', 'openai', or 'gemini'.")
