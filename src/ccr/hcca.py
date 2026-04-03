@@ -88,8 +88,11 @@ class HCCAReviewer:
         # Layer 1: Independent workers
         raw_reviews = self._layer1_workers(artifact, artifact_type)
 
-        # Layer 2: Cross-verification
-        verified_reviews = self._layer2_verifiers(artifact, artifact_type, raw_reviews)
+        # Layer 2: Cross-verification (skip if single worker — self-verification violates CCR principle)
+        if self.num_workers > 1:
+            verified_reviews = self._layer2_verifiers(artifact, artifact_type, raw_reviews)
+        else:
+            verified_reviews = raw_reviews
 
         # Layer 3: Director integration
         director_output, findings = self._layer3_director(artifact, verified_reviews)
@@ -235,9 +238,10 @@ class HCCAReviewer:
         self._total_output_tokens += response.output_tokens
 
         findings = []
+        severity_keywords = ("CRITICAL", "MAJOR", "MINOR", "INFO", "[CRITICAL", "[MAJOR", "[MINOR", "[INFO")
         for line in response.content.split("\n"):
             line = line.strip()
-            if line.startswith("["):
+            if line.startswith(severity_keywords) and "|" in line:
                 finding = _parse_director_finding(line)
                 if finding:
                     findings.append(finding)
@@ -284,12 +288,13 @@ class HCCAReviewer:
 
         # Look for FINAL FINDINGS section
         in_final = False
+        severity_keywords = ("CRITICAL", "MAJOR", "MINOR", "INFO", "[CRITICAL", "[MAJOR", "[MINOR", "[INFO")
         for line in content.split("\n"):
             stripped = line.strip()
             if "FINAL FINDINGS" in stripped.upper():
                 in_final = True
                 continue
-            if in_final and stripped.startswith("["):
+            if in_final and stripped.startswith(severity_keywords) and "|" in stripped:
                 finding = _parse_director_finding(stripped)
                 if finding:
                     findings.append(finding)

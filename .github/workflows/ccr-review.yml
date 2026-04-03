@@ -25,7 +25,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install ccr-review
-        run: pip install ccr-review
+        run: pip install .
 
       - name: Get changed files
         id: changed
